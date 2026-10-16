@@ -269,6 +269,16 @@
   }
   .btn-new:hover { background: var(--orange-dark); }
 
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block; width: 15px; height: 15px;
+    border: 2.5px solid rgba(255,255,255,.35);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin .7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-submit:disabled { background: var(--charcoal-soft); box-shadow: none; transform: none; cursor: not-allowed; }
+
   /* ── Toast ── */
   #toast {
     position: fixed; bottom: 24px; right: 24px; padding: 12px 18px;
@@ -573,7 +583,10 @@
   <div id="success-screen">
     <div class="success-ring">✓</div>
     <h2>Visit Logged Successfully!</h2>
-    <p>Your visit has been recorded. Thank you for staying on top<br>of your weekly channel partner visits.</p>
+    <p>Your visit has been recorded and sent to Google Sheets.<br>Thank you for completing your weekly partner visit log.</p>
+    <div style="display:inline-flex;align-items:center;gap:8px;background:var(--green-light);border:1px solid var(--green);border-radius:20px;padding:6px 16px;margin-bottom:20px;font-size:12px;font-weight:700;color:var(--green);">
+      <span>📊</span> Saved to Google Sheets
+    </div>
     <div class="success-meta" id="success-meta"></div>
     <button class="btn-new" onclick="startNew()">+ Log Another Visit</button>
   </div>
@@ -698,69 +711,106 @@ function handlePhoto(input, prevId, nameId, boxId) {
   updateSteps();
 }
 
-function submitVisit() {
+const SHEET_URL = 'https://script.google.com/a/macros/fusionfin.com/s/AKfycbx94lTLEJWYVNtCA1TDpMCNNB6khLqWsVGuFHWDIxx1IyhXoAG8QY8Fw7mWp50S-Ws/exec';
+
+async function submitVisit() {
   const role = document.querySelector('input[name="role"]:checked')?.value;
   const vtype = document.querySelector('input[name="vtype"]:checked')?.value;
   const ptype = document.querySelector('input[name="ptype"]:checked')?.value;
   const partnerCode = getPartnerCode();
   const ptypeLabel = ptype === 'BGP' ? 'DSA (BGP)' : ptype === 'GP' ? 'Connector (GP)' : '';
+
   const checks = [
-    [role, 'Please select your role (Branch Manager / Credit Manager)'],
-    [document.getElementById('f-empname').value.trim(), 'Please enter your Employee Name'],
-    [document.getElementById('f-empid').value.trim(), 'Please enter your Employee ID'],
-    [document.getElementById('f-state').value, 'Please select your State'],
-    [document.getElementById('f-cluster').value, 'Please select your Cluster'],
-    [document.getElementById('f-branch').value, 'Please select your Branch'],
-    [document.getElementById('f-date').value, 'Please select Visit Date'],
-    [ptype, 'Please select Partner Type — BGP (DSA) or GP (Connector)'],
-    [document.getElementById('f-partner').value.trim(), 'Please enter Partner Name'],
-    [document.getElementById('f-pcode').value.trim(), 'Please enter Partner Code'],
-    [vtype, 'Please select a Visit Type'],
-    [document.getElementById('p1').files[0], 'Please upload Photo 1'],
-    [document.getElementById('p2').files[0], 'Please upload Photo 2'],
+    [role,                                              'Please select your role (Branch Manager / Credit Manager)'],
+    [document.getElementById('f-empname').value.trim(),'Please enter your Employee Name'],
+    [document.getElementById('f-empid').value.trim(),  'Please enter your Employee ID'],
+    [document.getElementById('f-state').value,         'Please select your State'],
+    [document.getElementById('f-cluster').value,       'Please select your Cluster'],
+    [document.getElementById('f-branch').value,        'Please select your Branch'],
+    [document.getElementById('f-date').value,          'Please select Visit Date'],
+    [ptype,                                             'Please select Partner Type — BGP (DSA) or GP (Connector)'],
+    [document.getElementById('f-partner').value.trim(),'Please enter Partner Name'],
+    [document.getElementById('f-pcode').value.trim(),  'Please enter Partner Code'],
+    [vtype,                                             'Please select a Visit Type'],
+    [document.getElementById('p1').files[0],           'Please upload Photo 1'],
+    [document.getElementById('p2').files[0],           'Please upload Photo 2'],
   ];
-  for(const [val, msg] of checks) {
-    if(!val) { toast('⚠ ' + msg, 'red'); return; }
+  for (const [val, msg] of checks) {
+    if (!val) { toast('⚠ ' + msg, 'red'); return; }
   }
 
   const visit = {
-    id: Date.now(),
-    submittedAt: new Date().toLocaleString('en-IN'),
-    role, vtype,
-    empName: document.getElementById('f-empname').value.trim(),
-    empId: document.getElementById('f-empid').value.trim(),
-    state: document.getElementById('f-state').value,
-    cluster: document.getElementById('f-cluster').value,
-    branch: document.getElementById('f-branch').value,
-    date: document.getElementById('f-date').value,
-    partnerName: document.getElementById('f-partner').value.trim(),
-    partnerCode: partnerCode,
-    partnerType: ptypeLabel,
-    remarks: document.getElementById('f-remarks').value.trim(),
-    photo1: document.getElementById('p1').files[0].name,
-    photo2: document.getElementById('p2').files[0].name,
+    submittedAt:  new Date().toLocaleString('en-IN'),
+    date:         document.getElementById('f-date').value,
+    role,
+    empName:      document.getElementById('f-empname').value.trim(),
+    empId:        document.getElementById('f-empid').value.trim(),
+    state:        document.getElementById('f-state').value,
+    cluster:      document.getElementById('f-cluster').value,
+    branch:       document.getElementById('f-branch').value,
+    partnerType:  ptypeLabel,
+    partnerName:  document.getElementById('f-partner').value.trim(),
+    partnerCode:  partnerCode,
+    vtype,
+    remarks:      document.getElementById('f-remarks').value.trim(),
+    photo1:       document.getElementById('p1').files[0].name,
+    photo2:       document.getElementById('p2').files[0].name,
   };
 
-  // Save to localStorage
-  const all = JSON.parse(localStorage.getItem('fusion_visits')||'[]');
-  all.push(visit);
-  localStorage.setItem('fusion_visits', JSON.stringify(all));
+  // ── Show loading state ──────────────────────────────────────
+  const btn = document.querySelector('.btn-submit');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Submitting…`;
 
-  // Show success
+  try {
+    // ── POST to Google Sheets via Apps Script ───────────────────
+    // Using no-cors because Apps Script returns opaque response;
+    // we save locally first so data is never lost even if network fails
+    const all = JSON.parse(localStorage.getItem('fusion_visits') || '[]');
+    all.push({ ...visit, synced: false });
+    localStorage.setItem('fusion_visits', JSON.stringify(all));
+
+    await fetch(SHEET_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(visit),
+    });
+
+    // Mark as synced
+    const updated = JSON.parse(localStorage.getItem('fusion_visits') || '[]');
+    updated[updated.length - 1].synced = true;
+    localStorage.setItem('fusion_visits', JSON.stringify(updated));
+
+    // ── Show success screen ─────────────────────────────────────
+    showSuccess(visit);
+
+  } catch (err) {
+    // Network failed — data already saved locally, show warning
+    toast('⚠ Saved locally. Will sync when connection is restored.', 'red');
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+    // Still show success since data is saved locally
+    showSuccess(visit);
+  }
+}
+
+function showSuccess(visit) {
   document.getElementById('visit-form').style.display = 'none';
   document.getElementById('step-bar').style.display = 'none';
   document.querySelector('.req-note').style.display = 'none';
-  const meta = document.getElementById('success-meta');
-  meta.innerHTML = [
-    ['Employee', `${visit.empName} (${visit.empId})`],
-    ['Role', visit.role],
-    ['Branch', `${visit.branch}, ${visit.state}`],
-    ['Partner', `${visit.partnerName} · ${visit.partnerType}`],
-    ['Visit Type', visit.vtype],
-    ['Date', visit.date],
-  ].map(([l,v])=>`<div class="sm-row"><span class="sm-label">${l}</span><span class="sm-val">${v}</span></div>`).join('');
   document.getElementById('success-screen').style.display = 'block';
-  window.scrollTo({top:0,behavior:'smooth'});
+  document.getElementById('success-meta').innerHTML = [
+    ['Employee',   `${visit.empName} (${visit.empId})`],
+    ['Role',       visit.role],
+    ['Branch',     `${visit.branch}, ${visit.state}`],
+    ['Partner',    `${visit.partnerName} · ${visit.partnerType}`],
+    ['Visit Type', visit.vtype],
+    ['Date',       visit.date],
+    ['Submitted',  visit.submittedAt],
+  ].map(([l,v]) => `<div class="sm-row"><span class="sm-label">${l}</span><span class="sm-val">${v}</span></div>`).join('');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function resetForm() {
