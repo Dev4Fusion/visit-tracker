@@ -763,35 +763,50 @@ async function submitVisit() {
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> Submitting…`;
 
-  try {
-    // ── POST to Google Sheets via Apps Script ───────────────────
-    // Using no-cors because Apps Script returns opaque response;
-    // we save locally first so data is never lost even if network fails
-    const all = JSON.parse(localStorage.getItem('fusion_visits') || '[]');
-    all.push({ ...visit, synced: false });
-    localStorage.setItem('fusion_visits', JSON.stringify(all));
+  // ── Save locally first (safety net) ───────────────────────
+  const all = JSON.parse(localStorage.getItem('fusion_visits') || '[]');
+  all.push({ ...visit, synced: false });
+  localStorage.setItem('fusion_visits', JSON.stringify(all));
 
-    await fetch(SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(visit),
+  try {
+    // ── Send via GET with URL params (bypasses CORS entirely) ──
+    // Apps Script handles GET natively without preflight
+    const params = new URLSearchParams({
+      submittedAt:  visit.submittedAt,
+      date:         visit.date,
+      role:         visit.role,
+      empName:      visit.empName,
+      empId:        visit.empId,
+      state:        visit.state,
+      cluster:      visit.cluster,
+      branch:       visit.branch,
+      partnerType:  visit.partnerType,
+      partnerName:  visit.partnerName,
+      partnerCode:  visit.partnerCode,
+      vtype:        visit.vtype,
+      remarks:      visit.remarks,
+      photo1:       visit.photo1,
+      photo2:       visit.photo2,
     });
 
-    // Mark as synced
+    // Use no-cors GET — Apps Script doGet() will receive all params
+    await fetch(`${SHEET_URL}?${params.toString()}`, {
+      method: 'GET',
+      mode: 'no-cors',
+    });
+
+    // Mark as synced in localStorage
     const updated = JSON.parse(localStorage.getItem('fusion_visits') || '[]');
     updated[updated.length - 1].synced = true;
     localStorage.setItem('fusion_visits', JSON.stringify(updated));
 
-    // ── Show success screen ─────────────────────────────────────
     showSuccess(visit);
 
   } catch (err) {
-    // Network failed — data already saved locally, show warning
-    toast('⚠ Saved locally. Will sync when connection is restored.', 'red');
+    // Still show success — data is safe in localStorage
+    toast('⚠ Network issue — data saved locally.', 'red');
     btn.disabled = false;
     btn.innerHTML = originalText;
-    // Still show success since data is saved locally
     showSuccess(visit);
   }
 }
