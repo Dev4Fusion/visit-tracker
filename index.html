@@ -280,7 +280,7 @@
     <div class="success-ring">✓</div>
     <h2>Visit Logged Successfully!</h2>
     <p class="sub">Your visit details and photos have been saved.</p>
-    <div class="synced-badge">📊 Google Sheets &nbsp;·&nbsp; 📁 Google Drive</div>
+    <div class="synced-badge">📊 Saved to Google Sheets</div>
     <div class="photo-links" id="photo-links"></div>
     <div class="success-meta" id="success-meta"></div>
     <button class="btn-new" onclick="startNew()">+ Log Another Visit</button>
@@ -395,6 +395,27 @@ function fileToBase64(file){
   });
 }
 
+function compressImage(file, maxDim, quality){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = () => resolve(e.target.result);
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function submitVisit(){
   const role  = document.querySelector('input[name="role"]:checked')?.value;
   const ptype = document.querySelector('input[name="ptype"]:checked')?.value;
@@ -417,52 +438,41 @@ async function submitVisit(){
   ];
   for(const [val,msg] of checks){ if(!val){toast('⚠ '+msg,'red');return;} }
 
-  // Show progress overlay
   document.getElementById('progress-overlay').classList.add('show');
   document.getElementById('submit-btn').disabled = true;
-  setProgress(10,'Reading photos…','Step 1 of 3 — Preparing images');
+  setProgress(15,'Compressing photo…','Step 1 of 3 — Preparing image');
 
   try {
-    // Step 1: Convert photos to base64
-    const b64_1 = await fileToBase64(photoFiles[1]);
-    setProgress(50,'Uploading to Google Drive…','Step 2 of 3 — Uploading photo');
+    const photoData = await compressImage(photoFiles[1], 1280, 0.7);
+    setProgress(45,'Uploading photo & saving visit…','Step 2 of 3 — Sending to Google');
 
-    // Step 2: Build FormData and POST to Apps Script
-    const formData = new FormData();
-    formData.append('submittedAt', new Date().toLocaleString('en-IN'));
-    formData.append('date',        v('f-date'));
-    formData.append('role',        role);
-    formData.append('empName',     v('f-empname'));
-    formData.append('empId',       v('f-empid'));
-    formData.append('state',       v('f-state'));
-    formData.append('cluster',     document.getElementById('f-cluster').value);
-    formData.append('branch',      document.getElementById('f-branch').value);
-    formData.append('partnerType', ptypeLabel);
-    formData.append('partnerName', v('f-partner'));
-    formData.append('partnerCode', getPartnerCode());
-    formData.append('vtype',       vtype);
-    formData.append('remarks',     v('f-remarks'));
-    formData.append('photo1Name',   photoFiles[1].name);
-    formData.append('photo1Base64', b64_1);
-
-    setProgress(70,'Saving to Google Sheets…','Step 3 of 3 — Saving visit record');
-
-    const response = await fetch(SHEET_URL, {
-      method: 'POST',
-      body: formData,
-      mode: 'no-cors'
-    });
-
-    setProgress(100,'Done!','All data saved successfully');
-
-    // Save local backup (without photo data)
-    const backup = {
+    const payload = {
       submittedAt: new Date().toLocaleString('en-IN'),
-      date: v('f-date'), role, empName: v('f-empname'), empId: v('f-empid'),
-      state: v('f-state'), branch: document.getElementById('f-branch').value,
-      partnerName: v('f-partner'), partnerCode: getPartnerCode(),
-      partnerType: ptypeLabel, vtype, remarks: v('f-remarks')
+      date:        v('f-date'),
+      role:        role,
+      empName:     v('f-empname'),
+      empId:       v('f-empid'),
+      state:       v('f-state'),
+      cluster:     document.getElementById('f-cluster').value,
+      branch:      document.getElementById('f-branch').value,
+      partnerType: ptypeLabel,
+      partnerName: v('f-partner'),
+      partnerCode: getPartnerCode(),
+      vtype:       vtype,
+      remarks:     v('f-remarks'),
+      photoName:   v('f-empid').replace(/[^a-zA-Z0-9]/g,'_') + '_' + v('f-date') + '.jpg',
+      photoData:   photoData
     };
+
+    // No Content-Type header => text/plain => simple request, no CORS preflight
+    const resp = await fetch(SHEET_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+
+    if(result.status !== 'success') throw new Error(result.message || 'Server error');
+
+    setProgress(100,'Done!','All data saved');
+
+    const backup = Object.assign({}, payload, {photoData:''});
     const all = JSON.parse(localStorage.getItem('fusion_visits')||'[]');
     all.push(backup);
     localStorage.setItem('fusion_visits', JSON.stringify(all));
@@ -470,7 +480,12 @@ async function submitVisit(){
     setTimeout(() => {
       document.getElementById('progress-overlay').classList.remove('show');
       showSuccess(backup);
-    }, 800);
+      if(!result.photoUrl){
+        document.getElementById('photo-links').innerHTML =
+          '<p style="font-size:12px;color:var(--red);font-weight:600">⚠ Visit saved, but photo upload failed: ' +
+          (result.photoError || 'unknown error') + '</p>';
+      }
+    }, 600);
 
   } catch(err) {
     document.getElementById('progress-overlay').classList.remove('show');
@@ -484,8 +499,7 @@ function showSuccess(data){
   document.querySelector('.steps').style.display='none';
   document.querySelector('.req-note').style.display='none';
   document.getElementById('success-screen').style.display='block';
-  document.getElementById('photo-links').innerHTML =
-    '<p style="font-size:12px;color:var(--charcoal-soft)">📁 Photos saved to <strong>Google Drive → Fusion Visit Photos → '+data.empName+'_'+data.date+'</strong></p>';
+  document.getElementById('photo-links').innerHTML = '';
   document.getElementById('success-meta').innerHTML=[
     ['Employee', data.empName+' ('+data.empId+')'],
     ['Role',     data.role],
