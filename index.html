@@ -72,6 +72,9 @@
   .vt-icon{font-size:24px;display:block;margin-bottom:5px;}
   .vt-name{font-size:11.5px;font-weight:700;color:var(--charcoal-mid);}
   .vt-desc{font-size:9.5px;color:var(--charcoal-soft);margin-top:3px;line-height:1.4;}
+  .vt-name,.vt-desc{display:block;}
+  .fg2.single{grid-template-columns:1fr;}
+  .info-note{display:none;background:var(--blue-light);color:var(--blue);border-radius:var(--radius-sm);padding:10px 14px;font-size:11.5px;font-weight:600;margin-bottom:14px;line-height:1.5;}
   .vt[data-t="onboard"]:has(input:checked){border-color:var(--purple);background:var(--purple-light);}
   .vt[data-t="onboard"]:has(input:checked) .vt-name{color:var(--purple);}
   .vt[data-t="followup"]:has(input:checked){border-color:var(--blue);background:var(--blue-light);}
@@ -163,9 +166,9 @@
   <div class="steps">
     <div class="step"><div class="snum active" id="sn1">1</div><div class="sinfo"><div class="sl">Step 1</div><div class="sv active" id="sv1">Your Details</div></div></div>
     <div class="sconn" id="sc1"></div>
-    <div class="step"><div class="snum" id="sn2">2</div><div class="sinfo"><div class="sl">Step 2</div><div class="sv" id="sv2">Partner Info</div></div></div>
+    <div class="step"><div class="snum" id="sn2">2</div><div class="sinfo"><div class="sl">Step 2</div><div class="sv" id="sv2">Visit Type</div></div></div>
     <div class="sconn" id="sc2"></div>
-    <div class="step"><div class="snum" id="sn3">3</div><div class="sinfo"><div class="sl">Step 3</div><div class="sv" id="sv3">Visit &amp; Photos</div></div></div>
+    <div class="step"><div class="snum" id="sn3">3</div><div class="sinfo"><div class="sl">Step 3</div><div class="sv" id="sv3">Partner &amp; Photo</div></div></div>
   </div>
   <p class="req-note"><span>*</span> All fields are required unless marked optional.</p>
   <form id="visit-form" novalidate>
@@ -198,10 +201,31 @@
       </div>
     </div>
 
+    <!-- Visit Type -->
+    <div class="card">
+      <div class="card-hdr"><div class="card-icon" style="background:var(--blue-light)">📋</div><div><h2>Visit Type &amp; Notes</h2><p>Purpose of this visit</p></div></div>
+      <div class="card-body">
+        <div class="fg1">
+          <div class="field">
+            <label>Visit Type <span class="req">*</span></label>
+            <div class="vt-grid">
+              <label class="vt" data-t="onboard"><input type="radio" name="vtype" value="Onboarding Visit" onchange="onVisitTypeChange()"><span class="vt-icon">🤝</span><span class="vt-name">Onboarding Visit</span><span class="vt-desc">First visit to new partner</span></label>
+              <label class="vt" data-t="followup"><input type="radio" name="vtype" value="Business Follow-up Visit" onchange="onVisitTypeChange()"><span class="vt-icon">💼</span><span class="vt-name">Business Follow-up</span><span class="vt-desc">Regular check-in</span></label>
+              <label class="vt" data-t="reactivation"><input type="radio" name="vtype" value="Reactivation Visit" onchange="onVisitTypeChange()"><span class="vt-icon">🔄</span><span class="vt-name">Reactivation Visit</span><span class="vt-desc">Re-engaging dormant partner</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="fg1">
+          <div class="field"><label>Remarks <span style="font-weight:400;color:var(--charcoal-soft)">(Optional)</span></label><textarea id="f-remarks" placeholder="Discussion points, commitments, next steps…"></textarea></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Partner -->
     <div class="card">
-      <div class="card-hdr"><div class="card-icon" style="background:var(--purple-light)">🤝</div><div><h2>Partner Information</h2><p>Select partner type first</p></div></div>
+      <div class="card-hdr"><div class="card-icon" style="background:var(--purple-light)">🤝</div><div><h2>Partner Information</h2><p>Partner type, name and code</p></div></div>
       <div class="card-body">
+        <div class="info-note" id="onboard-note">ℹ️ Partner code is not required for an Onboarding visit — it is generated after onboarding is complete.</div>
         <div class="fg1">
           <div class="field">
             <label>Partner Type <span class="req">*</span></label>
@@ -213,34 +237,14 @@
         </div>
         <div id="partner-details">
           <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
-          <div class="fg2">
+          <div class="fg2" id="pd-grid">
             <div class="field"><label>Partner Name <span class="req">*</span></label><input type="text" id="f-partner" placeholder="Full name / firm name" oninput="updateSteps()"></div>
-            <div class="field">
+            <div class="field" id="pcode-field">
               <label><span id="pcode-label">Partner Code</span> <span class="req">*</span></label>
               <div class="pcode-wrap"><span class="pcode-prefix" id="pcode-prefix"></span><input type="text" id="f-pcode" placeholder="" oninput="updateSteps()"></div>
               <div id="pcode-hint" style="font-size:10.5px;color:var(--charcoal-soft);margin-top:4px"></div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Visit Type -->
-    <div class="card">
-      <div class="card-hdr"><div class="card-icon" style="background:var(--blue-light)">📋</div><div><h2>Visit Type &amp; Notes</h2><p>Purpose of this visit</p></div></div>
-      <div class="card-body">
-        <div class="fg1">
-          <div class="field">
-            <label>Visit Type <span class="req">*</span></label>
-            <div class="vt-grid">
-              <label class="vt" data-t="onboard"><input type="radio" name="vtype" value="Onboarding Visit" onchange="updateSteps()"><span class="vt-icon">🤝</span><span class="vt-name">Onboarding Visit</span><span class="vt-desc">First visit to new partner</span></label>
-              <label class="vt" data-t="followup"><input type="radio" name="vtype" value="Business Follow-up Visit" onchange="updateSteps()"><span class="vt-icon">💼</span><span class="vt-name">Business Follow-up</span><span class="vt-desc">Regular check-in</span></label>
-              <label class="vt" data-t="reactivation"><input type="radio" name="vtype" value="Reactivation Visit" onchange="updateSteps()"><span class="vt-icon">🔄</span><span class="vt-name">Reactivation Visit</span><span class="vt-desc">Re-engaging dormant partner</span></label>
-            </div>
-          </div>
-        </div>
-        <div class="fg1">
-          <div class="field"><label>Remarks <span style="font-weight:400;color:var(--charcoal-soft)">(Optional)</span></label><textarea id="f-remarks" placeholder="Discussion points, commitments, next steps…"></textarea></div>
         </div>
       </div>
     </div>
@@ -298,23 +302,48 @@ window.onload = () => {
   document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
   const sel = document.getElementById('f-state');
   Object.keys(GEO).sort().forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
+  applyVisitRules();
   updateSteps();
 };
 
 function v(id){ return (document.getElementById(id)?.value||'').trim(); }
 
+function needsCode(){
+  const vt = document.querySelector('input[name="vtype"]:checked')?.value;
+  return !!vt && vt !== 'Onboarding Visit';
+}
+
+function applyVisitRules(){
+  const vt = document.querySelector('input[name="vtype"]:checked')?.value;
+  const onboarding = vt === 'Onboarding Visit';
+  const needs = needsCode();
+  document.getElementById('pcode-field').style.display = needs ? 'block' : 'none';
+  document.getElementById('pd-grid').classList.toggle('single', !needs);
+  document.getElementById('onboard-note').style.display = onboarding ? 'block' : 'none';
+  document.querySelectorAll('.pt-hint').forEach(h => h.style.display = onboarding ? 'none' : 'block');
+}
+
+function onVisitTypeChange(){
+  applyVisitRules();
+  updateSteps();
+}
+
 function updateSteps(){
   const s1 = document.querySelector('input[name="role"]:checked') && v('f-empname') && v('f-empid') && v('f-state') && v('f-cluster') && v('f-branch') && v('f-date');
-  const s2 = document.querySelector('input[name="ptype"]:checked') && v('f-partner') && v('f-pcode');
-  const s3 = document.querySelector('input[name="vtype"]:checked');
+  const s2 = document.querySelector('input[name="vtype"]:checked');
+  const s3 = document.querySelector('input[name="ptype"]:checked') && v('f-partner') && (needsCode() ? v('f-pcode') : true) && photoFiles[1];
   const set = (n, state) => {
     document.getElementById('sn'+n).className = 'snum '+state;
     const sv = document.getElementById('sv'+n); if(sv) sv.className='sv'+(state==='active'?' active':'');
     const sc = document.getElementById('sc'+n); if(sc) sc.className='sconn'+(state==='done'?' done':'');
   };
-  if(s1&&s2){set(1,'done');set(2,'done');set(3,s3?'done':'active');}
-  else if(s1){set(1,'done');set(2,'active');set(3,'');}
-  else{set(1,'active');set(2,'');set(3,'');}
+  let activeSet = false;
+  [s1, s2, s3].forEach((ok, i) => {
+    const n = i + 1;
+    if (ok) set(n, 'done');
+    else if (!activeSet) { set(n, 'active'); activeSet = true; }
+    else set(n, '');
+  });
 }
 
 function populateClusters(){
@@ -354,10 +383,13 @@ function onPartnerType(){
     document.getElementById('pcode-label').textContent='GP Code (Connector)';
     document.getElementById('pcode-hint').textContent='Enter numeric part — e.g. GP00234';
   }
+  applyVisitRules();
   updateSteps();
 }
 
 function getPartnerCode(){
+  const vt=document.querySelector('input[name="vtype"]:checked')?.value;
+  if(vt==='Onboarding Visit') return 'Code Pending';
   const type=document.querySelector('input[name="ptype"]:checked')?.value;
   const raw=v('f-pcode');
   if(!type||!raw) return '';
@@ -372,6 +404,7 @@ function handlePhoto(input, num){
   document.getElementById('icon'+num).textContent='✅';
   document.getElementById('hint'+num).textContent='';
   document.getElementById('box'+num).className='photo-box ready';
+  updateSteps();
   // Show preview
   const reader=new FileReader();
   reader.onload=e=>{const img=document.getElementById('prev'+num);img.src=e.target.result;img.style.display='block';};
@@ -429,10 +462,10 @@ async function submitVisit(){
     [v('f-cluster'), 'Please select your Cluster'],
     [v('f-branch'),  'Please select your Branch'],
     [v('f-date'),    'Please select Visit Date'],
-    [ptype,          'Please select Partner Type (BGP or GP)'],
-    [v('f-partner'), 'Please enter Partner Name'],
-    [v('f-pcode'),   'Please enter Partner Code'],
     [vtype,          'Please select Visit Type'],
+    [ptype,          'Please select Partner Type (DSA or Connector)'],
+    [v('f-partner'), 'Please enter Partner Name'],
+    [needsCode() ? v('f-pcode') : 'ok', 'Please enter Partner Code'],
     [photoFiles[1],  'Please select a Visit Photo'],
   ];
   for(const [val,msg] of checks){ if(!val){toast('⚠ '+msg,'red');return;} }
@@ -528,6 +561,7 @@ function resetForm(){
   document.getElementById('box1').className='photo-box';
   document.getElementById('submit-btn').disabled=false;
   document.getElementById('submit-btn').innerHTML='Submit Visit ✓';
+  applyVisitRules();
   updateSteps();
   toast('Form cleared','green');
 }
