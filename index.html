@@ -48,6 +48,8 @@
   .field label .req{color:var(--orange);}
   .field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);padding:10px 13px;font-size:13px;color:var(--charcoal);background:var(--card);transition:all .15s;font-family:inherit;}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,96,28,.12);}
+  .field input.invalid,.field input.invalid:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.12);}
+  .field input.valid,.field input.valid:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(27,138,78,.12);}
   .field select:disabled{background:var(--surface);color:var(--charcoal-soft);cursor:not-allowed;}
   .field textarea{resize:vertical;min-height:80px;line-height:1.6;}
   .pt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -175,20 +177,15 @@
 
     <!-- Employee -->
     <div class="card">
-      <div class="card-hdr"><div class="card-icon">👤</div><div><h2>Employee Details</h2><p>Your role, name and branch</p></div></div>
+      <div class="card-hdr"><div class="card-icon">👤</div><div><h2>Employee Details</h2><p>Your name, ID and branch</p></div></div>
       <div class="card-body">
-        <div class="fg1">
-          <div class="field">
-            <label>I am a <span class="req">*</span></label>
-            <div class="role-grid">
-              <label class="role-btn"><input type="radio" name="role" value="Branch Manager" onchange="updateSteps()"><span class="rb-icon">🏢</span><div><div class="rb-label">Branch Manager</div><div class="rb-sub">BM — Branch operations head</div></div></label>
-              <label class="role-btn"><input type="radio" name="role" value="Credit Manager" onchange="updateSteps()"><span class="rb-icon">📊</span><div><div class="rb-label">Credit Manager</div><div class="rb-sub">CM — Credit &amp; underwriting</div></div></label>
-            </div>
-          </div>
-        </div>
         <div class="fg2">
           <div class="field"><label>Employee Name <span class="req">*</span></label><input type="text" id="f-empname" placeholder="Your full name" oninput="updateSteps()"></div>
-          <div class="field"><label>Employee ID <span class="req">*</span></label><input type="text" id="f-empid" placeholder="e.g. FF-1023" oninput="updateSteps()"></div>
+          <div class="field">
+            <label>Employee ID <span class="req">*</span></label>
+            <div class="pcode-wrap"><span class="pcode-prefix">FMF</span><input type="text" id="f-empid" inputmode="numeric" autocomplete="off" placeholder="073930" style="padding-left:52px" oninput="onEmpIdInput()" onblur="empIdFeedback(true)"></div>
+            <div id="empid-hint" style="font-size:10.5px;color:var(--charcoal-soft);margin-top:4px">FMF followed by 6 digits — e.g. FMF073930</div>
+          </div>
         </div>
         <div class="fg3">
           <div class="field"><label>State <span class="req">*</span></label><select id="f-state" onchange="populateClusters()"><option value="">Select state…</option></select></div>
@@ -308,6 +305,41 @@ window.onload = () => {
 
 function v(id){ return (document.getElementById(id)?.value||'').trim(); }
 
+function empIdValid(){ return /^[0-9]{6}$/.test(v('f-empid')); }
+function getEmpId(){ return 'FMF' + v('f-empid'); }
+
+function onEmpIdInput(){
+  const el = document.getElementById('f-empid');
+  // accept a pasted full ID too: drop spaces, a leading FMF, and anything non-numeric
+  const cleaned = el.value.toUpperCase().replace(/\s/g,'').replace(/^FMF/,'').replace(/[^0-9]/g,'').slice(0,10);
+  if (el.value !== cleaned) el.value = cleaned;
+  empIdFeedback(false);
+  updateSteps();
+}
+
+function empIdFeedback(final){
+  const el = document.getElementById('f-empid');
+  const hint = document.getElementById('empid-hint');
+  if(!el || !hint) return;
+  const val = v('f-empid');
+  el.classList.remove('valid','invalid');
+  hint.style.color = 'var(--charcoal-soft)';
+  if(!val){
+    hint.textContent = 'FMF followed by 6 digits — e.g. FMF073930';
+  } else if(empIdValid()){
+    el.classList.add('valid');
+    hint.style.color = 'var(--green)';
+    hint.textContent = '✓ ' + getEmpId();
+  } else if(val.length > 6 || final){
+    el.classList.add('invalid');
+    hint.style.color = 'var(--red)';
+    hint.textContent = 'Employee ID must be FMF followed by exactly 6 digits';
+  } else {
+    const left = 6 - val.length;
+    hint.textContent = left + ' more digit' + (left>1?'s':'') + ' needed after FMF';
+  }
+}
+
 function needsCode(){
   const vt = document.querySelector('input[name="vtype"]:checked')?.value;
   return !!vt && vt !== 'Onboarding Visit';
@@ -329,7 +361,7 @@ function onVisitTypeChange(){
 }
 
 function updateSteps(){
-  const s1 = document.querySelector('input[name="role"]:checked') && v('f-empname') && v('f-empid') && v('f-state') && v('f-cluster') && v('f-branch') && v('f-date');
+  const s1 = v('f-empname') && empIdValid() && v('f-state') && v('f-cluster') && v('f-branch') && v('f-date');
   const s2 = document.querySelector('input[name="vtype"]:checked');
   const s3 = document.querySelector('input[name="ptype"]:checked') && v('f-partner') && (needsCode() ? v('f-pcode') : true) && photoFiles[1];
   const set = (n, state) => {
@@ -449,15 +481,13 @@ function compressImage(file, maxDim, quality){
 }
 
 async function submitVisit(){
-  const role  = document.querySelector('input[name="role"]:checked')?.value;
   const ptype = document.querySelector('input[name="ptype"]:checked')?.value;
   const vtype = document.querySelector('input[name="vtype"]:checked')?.value;
   const ptypeLabel = ptype==='BGP'?'DSA (BGP)':ptype==='GP'?'Connector (GP)':'';
 
   const checks = [
-    [role,           'Please select your role'],
     [v('f-empname'), 'Please enter your Employee Name'],
-    [v('f-empid'),   'Please enter your Employee ID'],
+    [empIdValid() ? 'ok' : '', 'Employee ID must be FMF followed by exactly 6 digits (e.g. FMF073930)'],
     [v('f-state'),   'Please select your State'],
     [v('f-cluster'), 'Please select your Cluster'],
     [v('f-branch'),  'Please select your Branch'],
@@ -468,6 +498,7 @@ async function submitVisit(){
     [needsCode() ? v('f-pcode') : 'ok', 'Please enter Partner Code'],
     [photoFiles[1],  'Please select a Visit Photo'],
   ];
+  empIdFeedback(true);
   for(const [val,msg] of checks){ if(!val){toast('⚠ '+msg,'red');return;} }
 
   document.getElementById('progress-overlay').classList.add('show');
@@ -481,9 +512,8 @@ async function submitVisit(){
     const payload = {
       submittedAt: new Date().toLocaleString('en-IN'),
       date:        v('f-date'),
-      role:        role,
       empName:     v('f-empname'),
-      empId:       v('f-empid'),
+      empId:       getEmpId(),
       state:       v('f-state'),
       cluster:     document.getElementById('f-cluster').value,
       branch:      document.getElementById('f-branch').value,
@@ -492,7 +522,7 @@ async function submitVisit(){
       partnerCode: getPartnerCode(),
       vtype:       vtype,
       remarks:     v('f-remarks'),
-      photoName:   v('f-empid').replace(/[^a-zA-Z0-9]/g,'_') + '_' + v('f-date') + '.jpg',
+      photoName:   getEmpId() + '_' + v('f-date') + '.jpg',
       photoData:   photoData
     };
 
@@ -534,7 +564,6 @@ function showSuccess(data){
   document.getElementById('photo-links').innerHTML = '';
   document.getElementById('success-meta').innerHTML=[
     ['Employee', data.empName+' ('+data.empId+')'],
-    ['Role',     data.role],
     ['Branch',   data.branch+', '+data.state],
     ['Partner',  data.partnerName+' · '+data.partnerType],
     ['Visit',    data.vtype],
@@ -562,6 +591,7 @@ function resetForm(){
   document.getElementById('submit-btn').disabled=false;
   document.getElementById('submit-btn').innerHTML='Submit Visit ✓';
   applyVisitRules();
+  empIdFeedback(false);
   updateSteps();
   toast('Form cleared','green');
 }
