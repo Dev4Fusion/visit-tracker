@@ -84,6 +84,30 @@
   .vt[data-t="reactivation"]:has(input:checked){border-color:var(--amber);background:var(--amber-light);}
   .vt[data-t="reactivation"]:has(input:checked) .vt-name{color:var(--amber);}
   .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .loc-box{display:flex;align-items:center;justify-content:space-between;gap:16px;border:2px dashed var(--border-strong);border-radius:var(--radius-sm);padding:16px 18px;background:var(--surface);transition:all .2s;}
+  .loc-box.ok{border-style:solid;border-color:var(--green);background:var(--green-light);}
+  .loc-box.warn{border-style:solid;border-color:var(--amber);background:var(--amber-light);}
+  .loc-box.error{border-style:solid;border-color:var(--red);background:var(--red-light);}
+  .loc-title{font-size:13px;font-weight:700;}
+  .loc-box.ok .loc-title{color:var(--green);} .loc-box.warn .loc-title{color:var(--amber);} .loc-box.error .loc-title{color:var(--red);}
+  .loc-sub{font-size:11.5px;color:var(--charcoal-mid);margin-top:3px;line-height:1.55;}
+  .loc-btn{flex-shrink:0;background:var(--orange);color:#fff;border:none;border-radius:var(--radius-sm);padding:11px 20px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(232,96,28,.3);transition:all .2s;}
+  .loc-btn:hover:not(:disabled){background:var(--orange-dark);}
+  .loc-btn:disabled{background:var(--charcoal-soft);box-shadow:none;cursor:wait;}
+  @media(max-width:600px){.loc-box{flex-direction:column;align-items:stretch;}.loc-btn{justify-content:center;}}
+  .card.attn{border:2px solid var(--orange);box-shadow:0 0 0 4px rgba(232,96,28,.12),var(--shadow);}
+  .card.attn .loc-btn{animation:locpulse 1.6s ease-in-out infinite;}
+  @keyframes locpulse{0%,100%{box-shadow:0 4px 12px rgba(232,96,28,.3);}50%{box-shadow:0 0 0 8px rgba(232,96,28,.25),0 4px 12px rgba(232,96,28,.3);}}
+  @media(prefers-reduced-motion:reduce){.card.attn .loc-btn{animation:none;}}
+  .imp-tag{margin-left:auto;background:var(--orange);color:#fff;font-size:9.5px;font-weight:800;padding:4px 10px;border-radius:20px;letter-spacing:.6px;flex-shrink:0;}
+  .loc-banner{background:#FFF4E5;border-left:4px solid var(--orange);color:var(--orange-dark);font-size:12px;font-weight:700;padding:10px 14px;border-radius:6px;margin-bottom:12px;line-height:1.5;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;align-items:center;justify-content:center;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:#fff;border-radius:16px;padding:28px 30px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .modal-box h3{font-size:17px;font-weight:800;margin:8px 0 6px;}
+  .modal-box p{font-size:12.5px;color:var(--charcoal-mid);line-height:1.6;margin-bottom:20px;}
+  .modal-actions{display:flex;flex-direction:column;gap:10px;}
+  .modal-actions .btn-submit,.modal-actions .btn-reset{justify-content:center;width:100%;}
   .photo-box{border:2px dashed var(--border-strong);border-radius:var(--radius-sm);padding:20px 14px;text-align:center;cursor:pointer;position:relative;transition:all .2s;background:var(--surface);min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
   .photo-box input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
   .photo-box:hover{border-color:var(--orange);background:var(--orange-light);}
@@ -263,6 +287,21 @@
       </div>
     </div>
 
+    <!-- Location -->
+    <div class="card attn" id="loc-card">
+      <div class="card-hdr"><div class="card-icon" style="background:var(--amber-light)">📍</div><div><h2>Visit Location</h2><p>Strongly recommended — captured from your device's GPS</p></div><span class="imp-tag">IMPORTANT</span></div>
+      <div class="card-body">
+        <div class="loc-banner" id="loc-banner">⚠ Please capture your location. Visits submitted without a location are flagged in reports and emails.</div>
+        <div class="loc-box" id="loc-box">
+          <div>
+            <div class="loc-title" id="loc-title">Location not captured yet</div>
+            <div class="loc-sub" id="loc-sub">Tap Capture location and allow access when your phone asks. Please do this at the partner's location.</div>
+          </div>
+          <button type="button" class="loc-btn" id="loc-btn" onclick="captureLocation()">📍 Capture location</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Submit -->
     <div class="submit-section">
       <div class="submit-info">
@@ -287,19 +326,116 @@
   </div>
 </div>
 
+<!-- No-location prompt -->
+<div class="modal-overlay" id="loc-modal">
+  <div class="modal-box">
+    <div style="font-size:40px">📍</div>
+    <h3 id="loc-modal-title">Location not captured</h3>
+    <p id="loc-modal-text"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn-submit" id="loc-modal-capture" onclick="locModalCapture()">📍 Capture location now</button>
+      <button type="button" class="btn-reset" id="loc-modal-skip" onclick="locModalSkip()">Submit without location</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzbVEU9HrfDWGw47M-Ig7TjXsGJT0a3UoeoI5ft7cN8AWD6HZTia14Sc-OLabaIJRs/exec';
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx_6QqlaQ6UjnhiyHha3iDI7OE3lITNTNTM2ixt1KrIzwoulqfv9LMQuAk15lWOQ6c/exec';
 const GEO = {"Bihar":{"Darbhanga Cluster":["Darbhanga","Samastipur","Sitamarhi"],"Gopalganj Cluster":["Bettiah","Chhapra","Gopalganj"],"Muzaffarpur Cluster":["Begusarai","Madhubani","Motihari","Muzaffarpur"],"Patna Cluster":["Aurangabad","Bhagalpur","Gaya","Patna","Sasaram"]},"Delhi":{"Delhi 1 Cluster":["Delhi- Uttam Nagar","Krishna Nagar-Delhi"],"Delhi 2 Cluster":["Burari"]},"Gujarat":{"Ahmedabad Cluster":["Ahmedabad","Bhavnagar","Rajkot","Surat","Vadodara"]},"Haryana":{"Delhi 2 Cluster":["Noida"],"Faridabad Cluster":["Faridabad Nit","Rewari"],"Karnal Cluster":["Hisar","Karnal","Rohtak","Sirsa"]},"Madhya Pradesh":{"Indore Cluster":["Dewas","Dhar","Indore","Sagar","Ujjain","Vidisha"]},"Rajasthan":{"Ajmer Cluster":["Ajmer","Bijainagar","Didwana","Jaipur","Kuchaman","Nagaur"],"Jodhpur Cluster":["Balotra","Bhilwara","Jalore","Jodhpur","Udaipur"],"Sikar Cluster":["Alwar","Bandikui","Jhunjhunu","Neemkathana","Sikar"]},"Uttar Pradesh - 1":{"Aligarh Cluster":["Aligarh","Badaun","Chandausi","Kasganj"],"Bareilly Cluster":["Bareilly","Bulandshahr","Haldwani","Kashipur","Moradabad","Shahjahanpur"],"Saharanpur Cluster":["Bijnor","Meerut","Roorkee","Saharanpur","Yamuna Nagar"]},"Uttar Pradesh - 2":{"Agra Cluster":["Agra","Bharatpur","Farrukhabad","Firozabad","Mathura"],"Gwalior Cluster":["Gwalior","Jhansi","Orai","Shivpuri"]},"Uttar Pradesh - 3":{"Purvanchal Cluster":["Azamgarh","Basti","Deoria","Gorakhpur","Jaunpur"],"Sangam Cluster":["Ayodhya","Kanpur","Lucknow","Prayagraj","Varanasi"]}};
 
 var photoFiles = {1: null, 2: null};
+
+// ── GPS location ─────────────────────────────────────────────
+var geo = null;                          // {lat, lng, acc, time}
+const GEO_MAX_ACC = 500;                 // metres: worse than this is rejected
+const GEO_WARN_ACC = 100;                // metres: worse than this shows a warning
+const GEO_MAX_AGE_MS = 15 * 60 * 1000;   // a capture older than this must be repeated
+
+var locSkipConfirmed = false;
+function showLocModal(){
+  const stale = !!geo && !geoFresh();
+  document.getElementById('loc-modal-title').textContent = stale ? 'Your saved location is out of date' : 'Location not captured';
+  document.getElementById('loc-modal-text').textContent = stale
+    ? 'Your location was captured more than 15 minutes ago, so it will not be included. Capture it again, or submit without location.'
+    : 'Visits without a location are flagged in reports and emails. It only takes a few seconds, so please capture it now if you can.';
+  document.getElementById('loc-modal').classList.add('show');
+}
+function locModalCapture(){
+  document.getElementById('loc-modal').classList.remove('show');
+  document.getElementById('loc-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  captureLocation();
+}
+function locModalSkip(){
+  document.getElementById('loc-modal').classList.remove('show');
+  locSkipConfirmed = true;
+  submitVisit();
+}
+
+function geoFresh(){ return !!geo && (Date.now() - geo.time) <= GEO_MAX_AGE_MS; }
+
+function setLocState(state, msg){
+  const box = document.getElementById('loc-box'), title = document.getElementById('loc-title');
+  const sub = document.getElementById('loc-sub'), btn = document.getElementById('loc-btn');
+  const attn = !(state === 'ok' || state === 'warn');
+  document.getElementById('loc-card').classList.toggle('attn', attn);
+  document.getElementById('loc-banner').style.display = attn ? 'block' : 'none';
+  box.className = 'loc-box' + (state==='ok'||state==='warn'||state==='error' ? ' '+state : '');
+  btn.disabled = (state === 'busy');
+  if(state === 'idle'){
+    title.textContent = 'Location not captured yet';
+    sub.textContent = "Tap Capture location and allow access when your phone asks. Please do this at the partner's location.";
+    btn.innerHTML = '📍 Capture location';
+  } else if(state === 'busy'){
+    title.textContent = 'Getting your location…';
+    sub.textContent = 'This can take up to 20 seconds. Please keep the page open.';
+    btn.innerHTML = '<span class="spinner"></span> Locating…';
+  } else if(state === 'ok' || state === 'warn'){
+    title.textContent = (state==='ok' ? '✓ Location captured' : '⚠ Location captured, weak accuracy') + ' (±' + geo.acc + ' m)';
+    sub.textContent = geo.lat.toFixed(6) + ', ' + geo.lng.toFixed(6) +
+      (state==='warn' ? ' — for a better reading, move to an open area and tap Recapture.' : '');
+    btn.innerHTML = '↻ Recapture';
+  } else {
+    title.textContent = '✕ Could not get location';
+    sub.textContent = msg + ' You can still submit, but the visit will be flagged as having no location.';
+    btn.innerHTML = '↻ Retry';
+  }
+}
+
+function captureLocation(){
+  if(!('geolocation' in navigator)){
+    geo = null; setLocState('error', 'This browser does not support location. Please open this form in Chrome.'); updateSteps(); return;
+  }
+  setLocState('busy');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const acc = Math.round(pos.coords.accuracy);
+    if(acc > GEO_MAX_ACC){
+      geo = null;
+      setLocState('error', 'Location is too imprecise (±' + acc + ' m). Turn on GPS / high-accuracy location, move to an open area, and tap Retry.');
+    } else {
+      geo = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6), acc: acc, time: Date.now() };
+      setLocState(acc > GEO_WARN_ACC ? 'warn' : 'ok');
+    }
+    updateSteps();
+  }, err => {
+    geo = null;
+    const msgs = {
+      1: 'Location permission is blocked. Tap the lock icon next to the web address, set Location to Allow, then tap Retry. If you opened this link from WhatsApp or another app, open it in Chrome instead.',
+      2: 'Your device could not work out its location. Turn on GPS / location services and tap Retry.',
+      3: 'Timed out waiting for GPS. Move to an open area and tap Retry.'
+    };
+    setLocState('error', msgs[err.code] || 'Could not get your location. Please tap Retry.');
+    updateSteps();
+  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+}
 
 window.onload = () => {
   document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
   const sel = document.getElementById('f-state');
   Object.keys(GEO).sort().forEach(s => sel.innerHTML += `<option value="${s}">${s}</option>`);
   applyVisitRules();
+  setLocState('idle');
   updateSteps();
 };
 
@@ -501,6 +637,11 @@ async function submitVisit(){
   empIdFeedback(true);
   for(const [val,msg] of checks){ if(!val){toast('⚠ '+msg,'red');return;} }
 
+  // Location is optional, but the person must have seen the prompt
+  const useLoc = geoFresh();
+  if(!useLoc && !locSkipConfirmed){ showLocModal(); return; }
+  locSkipConfirmed = false;
+
   document.getElementById('progress-overlay').classList.add('show');
   document.getElementById('submit-btn').disabled = true;
   setProgress(15,'Compressing photo…','Step 1 of 3 — Preparing image');
@@ -522,6 +663,10 @@ async function submitVisit(){
       partnerCode: getPartnerCode(),
       vtype:       vtype,
       remarks:     v('f-remarks'),
+      lat:         useLoc ? geo.lat : '',
+      lng:         useLoc ? geo.lng : '',
+      accuracy:    useLoc ? geo.acc : '',
+      locTime:     useLoc ? new Date(geo.time).toLocaleString('en-IN') : '',
       photoName:   getEmpId() + '_' + v('f-date') + '.jpg',
       photoData:   photoData
     };
@@ -590,6 +735,10 @@ function resetForm(){
   document.getElementById('box1').className='photo-box';
   document.getElementById('submit-btn').disabled=false;
   document.getElementById('submit-btn').innerHTML='Submit Visit ✓';
+  geo = null;
+  locSkipConfirmed = false;
+  document.getElementById('loc-modal').classList.remove('show');
+  setLocState('idle');
   applyVisitRules();
   empIdFeedback(false);
   updateSteps();
